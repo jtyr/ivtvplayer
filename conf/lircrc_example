@@ -1,0 +1,167 @@
+##########################################################
+## Description: LIRC configuration for itv and iradio
+##
+## (c) Jiri Tyr 2008
+##########################################################
+
+
+###########
+### ITV ###
+###########
+
+begin
+        prog   = irexec
+        button = Videos
+        config = itv -l &
+        repeat = 0
+	mode   = itv
+end
+begin itv
+	begin
+		prog   = itv
+		button = 1
+		config = CH1
+	        repeat = 0
+	end
+	begin
+		prog   = itv
+		button = 2
+		config = CH2
+	        repeat = 0
+	end
+	begin
+		prog   = itv
+		button = 3
+		config = CH3
+	        repeat = 0
+	end
+	begin
+		prog   = itv
+		button = 4
+		config = CH4
+	        repeat = 0
+	end
+	begin
+		prog   = itv
+		button = 5
+		config = CH5
+	        repeat = 0
+	end
+	begin
+		prog   = itv
+		button = 6
+		config = CH6
+	        repeat = 0
+	end
+	begin
+		prog   = itv
+		button = 7
+		config = CH7
+	        repeat = 0
+	end
+	begin
+		prog   = itv
+		button = 8
+		config = CH8
+	        repeat = 0
+	end
+	begin
+		prog   = itv
+		button = 9
+		config = CH9
+	        repeat = 0
+	end
+	begin
+		prog   = itv
+		button = 0
+		config = COMP
+	        repeat = 0
+	end
+	begin
+		prog   = itv
+		button = Ch+
+		config = CH+
+	        repeat = 0
+	end
+	begin
+		prog   = itv
+		button = Ch-
+		config = CH-
+	        repeat = 0
+	end
+	begin
+		prog   = itv
+		button = Yellow
+		config = ASPECT
+	        repeat = 0
+	end
+	begin
+		prog   = itv
+		button = Menu/i
+		config = SHOW_CHANNEL
+	        repeat = 0
+	end
+	begin
+		prog   = itv
+		button = Back/Exit
+		config = QUIT
+	        repeat = 0
+	end
+end itv
+
+
+##############
+### IRADIO ###
+##############
+
+begin
+        prog   = irexec
+        button = Radio
+        config = iradio -l &
+        repeat = 0
+        mode = iradio
+end
+begin iradio
+        begin
+                prog   = iradio
+                button = 1
+                config = CH1
+                repeat = 0
+        end
+        begin
+                prog   = iradio
+                button = 2
+                config = CH2
+                repeat = 0
+        end
+	begin
+		prog   = iradio
+		button = 3
+		config = CH3
+		repeat = 0
+	end
+	begin
+		prog   = iradio
+		button = Ch+
+		config = CH+
+	        repeat = 0
+	end
+	begin
+		prog   = iradio
+		button = Ch-
+		config = CH-
+	        repeat = 0
+	end
+	begin
+		prog   = iradio
+		button = Menu/i
+		config = SHOW_CHANNEL
+	        repeat = 0
+	end
+        begin
+                prog   = iradio
+                button = Back/Exit
+                config = QUIT
+                repeat = 0
+        end
+end iradio

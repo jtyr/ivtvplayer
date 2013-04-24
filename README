@@ -1,0 +1,41 @@
+License
+=======
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see <http://www.gnu.org/licenses/>.
+
+
+Description
+===========
+
+This is suite of programs for PVR TV cards based on IVTV driver. It containts TV
+player, radio player and GUI fo V4L2 controls. The players have support for LIRC
+and XOSD.
+
+
+Requirements
+============
+
+* PVR TV card
+* IVTV driver and utilities (v4l2-ctl, ivtv-radio, ivtv-tune)
+  [http://www.ivtvdriver.org]
+* MPlayer (mplayer) [http://www.mplayerhq.hu]
+* ALSA utils (aplay) [http://www.alsa-project.org/]
+* Perl (Lirc::Client, XML::Simple, Gtk2; optionaly: X::Osd)
+* XML Syntax Validator (xmllint, jing, ...) = optional
+
+
+Bugs and updates
+================
+
+Please send bug reports and updates to my e-mail address:
+<jiri[dot]tyr[at]e-learning[dot]vslib[dot]cz>

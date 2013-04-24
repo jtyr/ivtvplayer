@@ -1,0 +1,607 @@
+#!/usr/bin/perl
+
+
+##~#~~#~~~#~~~~#~~~~~#~~~~~~#~~~~~~~#~~~~~~~~#~~~~~~~~~#~~~~~~~~~~~~#
+# Name: ictl                                                         #
+# Description: Simple command line V4L2 controls manager. Supports   #
+#              only PVR TV cards based on IVTV driver.               #
+# Dependencies: v4l2-ctl                                             #
+# Author: Jiri Tyr                                                   #
+# Last update: 28.09.2008                                            #
+# License: GPL                                                       #
+##~#~~#~~~#~~~~#~~~~~#~~~~~~#~~~~~~~#~~~~~~~~#~~~~~~~~~#~~~~~~~~~~~~#
+
+
+use strict;
+use warnings;
+use Gtk2 -init;
+use Glib qw/TRUE FALSE/;
+use Data::Dumper;
+use Getopt::Long;
+
+
+my $VERSION = '0.1.3';
+
+
+# global variables
+my ($device, $debug, $version, $help);
+
+
+# get command line options
+my $p = new Getopt::Long::Parser();
+$p->configure('bundling');
+$p->getoptions(
+	'd|device=s'	=> \$device,
+	'e|debug'	=> \$debug,
+	'v|version'	=> \$version,
+	'h|help'	=> \$help
+);
+
+$device ||= '/dev/video0';
+
+if (defined $help) {
+	&help();
+	exit 1;
+}
+if (defined $version) {
+	print 'ictl version '.$version."\n";
+	exit 1;
+}
+
+
+# build gui
+my $window = Gtk2::Window->new('toplevel');
+$window->set_size_request(600, 500);
+$window->set_title('ICTL');
+$window->signal_connect('destroy' => sub { Gtk2->main_quit() });
+
+my $main_vbox = Gtk2::VBox->new(FALSE, 0);
+
+my $device_hbox = Gtk2::HBox->new(FALSE, 0);
+my $device_label = Gtk2::Label->new('Device:');
+my $device_entry = Gtk2::Entry->new();
+$device_entry->set_text($device);
+my $device_button = Gtk2::Button->new('Load');
+$device_button->signal_connect('clicked' => \&load);
+$device_hbox->pack_start($device_label, FALSE, FALSE, 5);
+$device_hbox->pack_start($device_entry, TRUE, TRUE, 0);
+$device_hbox->pack_start($device_button, FALSE, FALSE, 5);
+$main_vbox->pack_start($device_hbox, FALSE, FALSE, 0);
+
+my $notebook = Gtk2::Notebook->new;
+$notebook->set_tab_pos('top');
+
+&load();
+
+$main_vbox->pack_start($notebook, TRUE, TRUE, 5);
+
+$window->add($main_vbox);
+
+$window->show_all();
+Gtk2->main();
+
+
+exit 0;
+
+
+#########################
+### SUBPROGRAMS ###  #x#
+###################   #
+
+sub load {
+	my ($user_ctls, $mpeg_ctls, $common_ctls);
+
+	# remove all pages
+	for (my $n=$notebook->get_n_pages()-1; $n>=0; $n--) {
+		$notebook->remove_page($n);
+	}
+
+	# get data
+	&parseCtls(\$user_ctls, \$mpeg_ctls);
+
+	# get data
+	&parseCommonOptions(\$common_ctls);
+
+	my $user_scrolled_window = Gtk2::ScrolledWindow->new();
+	$user_scrolled_window->set_policy('automatic', 'automatic');
+	my $mpeg_scrolled_window = Gtk2::ScrolledWindow->new();
+	$mpeg_scrolled_window->set_policy('automatic', 'automatic');
+	my $common_scrolled_window = Gtk2::ScrolledWindow->new();
+	$common_scrolled_window->set_policy('automatic', 'automatic');
+
+	### User Controls
+	if (ref $user_ctls and scalar @{$user_ctls}) {
+		my $user_vbox = Gtk2::VBox->new(FALSE, 0);
+		my $user_table = Gtk2::Table->new(scalar @{$user_ctls}, 3, FALSE);
+		&defineItems($user_ctls, $user_table);
+		$user_vbox->pack_start($user_table, FALSE, TRUE, 0);
+
+		$user_scrolled_window->add_with_viewport($user_vbox);
+	}
+
+	### MPEG Encoder Controls
+	if (ref $mpeg_ctls and scalar @{$mpeg_ctls}) {
+		my $mpeg_vbox = Gtk2::VBox->new(FALSE, 0);
+		my $mpeg_table = Gtk2::Table->new(scalar @{$mpeg_ctls}, 3, FALSE);
+		&defineItems($mpeg_ctls, $mpeg_table);
+		$mpeg_vbox->pack_start($mpeg_table, FALSE, TRUE, 0);
+
+		$mpeg_scrolled_window->add_with_viewport($mpeg_vbox);
+	}
+
+	### Common Options
+	if (ref $common_ctls and scalar @{$common_ctls}) {
+		my $common_vbox = Gtk2::VBox->new(FALSE, 0);
+		my $common_table = Gtk2::Table->new(scalar @{$common_ctls}, 3, FALSE);
+		&defineItems($common_ctls, $common_table);
+		$common_vbox->pack_start($common_table, FALSE, TRUE, 0);
+
+		$common_scrolled_window->add_with_viewport($common_vbox);
+	}
+
+
+	$notebook->append_page($user_scrolled_window, 'User Controls');
+	$notebook->append_page($mpeg_scrolled_window, 'MPEG Encoder Controls');
+	$notebook->append_page($common_scrolled_window, 'Common options');
+
+
+	# open page 0
+	$notebook->set_current_page (0);
+
+	# refresh all window
+	$window->show_all();
+}
+
+
+sub defineItems {
+	my $data = shift;
+	my $table = shift;
+
+	for (my $i=0; $i<scalar @{$data}; $i++) {
+		my $n = $data->[$i]->{'name'}.':';
+		$n =~ s/^_//;
+		$n =~ s/^(.)/uc $1/e;
+		$n =~ s/_/ /g;
+
+		my $name_hbox = Gtk2::HBox->new(FALSE, 0);
+		my $name_label = Gtk2::Label->new($n);
+		if (exists $data->[$i]->{'flags'}->{'readonly'} or exists $data->[$i]->{'flags'}->{'inactive'}) {
+			# disable it
+			$name_label->sensitive(FALSE);
+		}
+		$name_hbox->pack_end($name_label, FALSE, FALSE, 0);
+
+		my ($value_object, $signal);
+		if ($data->[$i]->{'type'} eq 'int') {
+			if (exists $data->[$i]->{'flags'}->{'slider'}) {
+				$value_object = Gtk2::HScale->new_with_range($data->[$i]->{'min'}, $data->[$i]->{'max'}, exists $data->[$i]->{'step'} ? $data->[$i]->{'step'} : 1);
+				$value_object->set_value($data->[$i]->{'value'});
+				$value_object->set_value_pos('right');
+				$signal = 'value-changed';
+			} else {
+				my $adjustment = Gtk2::Adjustment->new($data->[$i]->{'value'}, $data->[$i]->{'min'}, $data->[$i]->{'max'}, exists $data->[$i]->{'step'} ? $data->[$i]->{'step'} : 1, 0, 0);
+				$value_object = Gtk2::SpinButton->new($adjustment, 0.5, 0);
+				if (
+					(exists $data->[$i]->{'min'} and $data->[$i]->{'min'} =~ /\d+\.(\d+)/) or
+					(exists $data->[$i]->{'max'} and $data->[$i]->{'max'} =~ /\d+\.(\d+)/) or
+					(exists $data->[$i]->{'default'} and $data->[$i]->{'default'} =~ /\d+\.(\d+)/) or
+					(exists $data->[$i]->{'step'} and $data->[$i]->{'step'} =~ /\d+\.(\d+)/)
+				) {
+					$value_object->set_digits(length $1);
+				} else {
+					$value_object->set_digits(0);
+				}
+				$signal = 'value-changed';
+			}
+		} elsif ($data->[$i]->{'type'} eq 'bool') {
+			$value_object = Gtk2::CheckButton->new();
+			if ($data->[$i]->{'value'} == 1) {
+				$value_object->set_active(TRUE);
+			}
+			$signal = 'clicked';
+		} elsif ($data->[$i]->{'type'} eq 'menu') {
+			$value_object = Gtk2::ComboBox->new_text();
+			my $value_index = 0;
+
+			for (my $j=0; $j < scalar(@{$data->[$i]->{'menu'}}); $j++) {
+				if ($data->[$i]->{'menu'}->[$j]->{'value'} eq $data->[$i]->{'value'}) {
+					$value_index = $j;
+				}
+				$value_object->append_text($data->[$i]->{'menu'}->[$j]->{'name'});
+			}
+
+			$value_object->set_active($value_index);
+			$signal = 'changed';
+		}
+
+		$value_object->signal_connect($signal => \&setValue, [$data->[$i]->{'name'}, $value_object, $data->[$i]->{'type'}, exists $data->[$i]->{'menu'} ? $data->[$i]->{'menu'} : undef, 'SET']);
+
+		$table->attach($name_hbox, 0, 1, $i, $i+1, 'fill', 'shrink', 3, 0);
+		if (exists $data->[$i]->{'flags'}->{'readonly'} or exists $data->[$i]->{'flags'}->{'inactive'}) {
+			# disable it
+			$value_object->sensitive(FALSE);
+		}
+		$table->attach($value_object, 1, 2, $i, $i+1, ['expand', 'fill'], 'shrink', 3, 0);
+
+		if (exists $data->[$i]->{'default'} and not exists $data->[$i]->{'flags'}->{'readonly'} and not exists $data->[$i]->{'flags'}->{'inactive'}) {
+	    		my $default_button = Gtk2::Button->new('Default');
+			$default_button->signal_connect('clicked' => \&setValue, [$data->[$i]->{'name'}, $value_object, $data->[$i]->{'type'}, exists $data->[$i]->{'menu'} ? $data->[$i]->{'menu'} : undef, 'DEFAULT', $data->[$i]->{'default'}]);
+			$table->attach($default_button, 2, 3, $i, $i+1, 'shrink', 'shrink', 3, 0);
+		}
+	}
+}
+
+
+sub setValue {
+	my $widget = shift;
+	my $data = shift;
+
+	my $key = $data->[0];
+	my $object = $data->[1];
+	my $type = $data->[2];
+	my $menu = $data->[3];
+	my $action = $data->[4];
+	my $default_value = $data->[5];
+
+	&message('I', 'Set value:') if ($debug);
+
+	my $value;
+	if ($action eq 'SET') {
+		&message(undef, '    * action='.$action) if ($debug);
+
+		if ($type eq 'int') {
+			$value = $object->get_value();
+		} elsif ($type eq 'bool') {
+			$value = $object->get_active() || 0;
+		} elsif ($type eq 'menu') {
+			$value = $menu->[$object->get_active()]->{'value'};
+		}
+
+		my $d = ' 2>&1 1>/dev/null';
+		if ($debug) {
+			$d = '';
+		}
+
+		if ($key eq '_video_output') {
+			&message(undef, '    * --set-output='.$value.' ('.$device_entry->get_text().')') if ($debug);
+			system 'v4l2-ctl --set-output='.$value.' -d '.$device_entry->get_text().$d;
+		} elsif ($key eq '_video_input') {
+			&message(undef, '    * --set-input='.$value.' ('.$device_entry->get_text().')') if ($debug);
+			system 'v4l2-ctl --set-input='.$value.' -d '.$device_entry->get_text().$d;
+		} elsif ($key eq '_video_standards') {
+			&message(undef, '    * --set-standard='.$value.' ('.$device_entry->get_text().')') if ($debug);
+			system 'v4l2-ctl --set-standard='.$value.' -d '.$device_entry->get_text().$d;
+		} elsif ($key eq '_tuner_audio_mode') {
+			&message(undef, '    * --set-tuner='.$value.' ('.$device_entry->get_text().')') if ($debug);
+			system 'v4l2-ctl --set-tuner='.$value.' -d '.$device_entry->get_text().$d;
+		} elsif ($key eq '_frequency') {
+			&message(undef, '    * --set-freq='.$value.' ('.$device_entry->get_text().')') if ($debug);
+			system 'v4l2-ctl --set-freq='.$value.' -d '.$device_entry->get_text().$d;
+		} else {
+			&message(undef, '    * --set-ctrl='.$key.'='.$value.' ('.$device_entry->get_text().')') if ($debug);
+			system 'v4l2-ctl --set-ctrl='.$key.'='.$value.' -d '.$device_entry->get_text().$d;
+		}
+	} else {
+		# action = DEFAULT
+		&message(undef, '    * action='.$action) if ($debug);
+		&message(undef, '    * value='.$default_value) if ($debug);
+
+		$value = $default_value;
+
+		if ($type eq 'int') {
+			$object->set_value($default_value);
+		} elsif ($type eq 'bool') {
+			$object->set_active($default_value);
+		} elsif ($type eq 'menu') {
+			for (my $i=0; $i<scalar @{$menu}; $i++) {
+				if ($menu->[$i]->{'value'} eq $default_value) {
+					$object->set_active($i);
+					last;
+				}
+			}
+		}
+	}
+}
+
+
+sub parseCtls {
+	my $user_ctls = shift;
+	my $mpeg_ctls = shift;
+
+	my $d = ' 2>&1';
+	if ($debug) {
+		$d = '';
+	}
+
+	my $txt = `v4l2-ctl -L -d $device $d`;
+	my @lines = split '\n', $txt;
+
+	my $part = 1;
+
+	foreach my $line (@lines) {
+		if ($line =~ /^MPEG/) {
+			$part = 2;
+		}
+
+		if ($line =~ /\s*([a-z_]+) \((menu|int|bool)\)\s*(.*)/) {
+			my $name = $1;
+			my $type = $2;
+			my $rest = $3;
+			my ($min, $max, $step, $default, $value, $flags);
+
+			if ($rest =~ /min=((|-)\d+)/) {
+				$min = $1;
+			}
+			if ($rest =~ /max=((|-)\d+)/) {
+				$max = $1;
+			}
+			if ($rest =~ /step=(\d+)/) {
+				$step = $1;
+			}
+			if ($rest =~ /default=((|-)\d+)/) {
+				$default = $1;
+			}
+			if ($rest =~ /value=((|-)\d+)/) {
+				$value = $1;
+			}
+			if ($rest =~ /flags=(.*)/) {
+				my @flags = split ' ', $1;
+				foreach my $f (@flags) {
+					$flags->{$f} = 1;
+				}
+			}
+
+			my $record = {
+				'name'		=> $name,
+				'type'		=> $type,
+				'min'		=> $min,
+				'max'		=> $max,
+				'step'		=> $step,
+				'default'	=> $default,
+				'value'		=> $value,
+				'flags'		=> $flags
+			};
+
+			if ($part == 1) {
+				push @{$$user_ctls}, $record;
+			} else {
+				push @{$$mpeg_ctls}, $record;
+			}
+		} elsif ($line =~ /\s*(\d+): (.*)/) {
+			# read menu items
+			my $mrecord = {
+				'value'	=> $1,
+				'name'	=> $2
+			};
+
+			if ($part == 1) {
+				push @{$$user_ctls->[scalar(@{$$user_ctls})-1]->{'menu'}}, $mrecord;
+			} else {
+				push @{$$mpeg_ctls->[scalar(@{$$mpeg_ctls})-1]->{'menu'}}, $mrecord;
+			}
+		}
+	}
+}
+
+
+sub parseCommonOptions {
+	my $common_ctls = shift;
+
+	my $d = ' 2>&1';
+	if ($debug) {
+		$d = '';
+	}
+
+	my $txt_output = `v4l2-ctl --list-outputs -d $device $d`;
+	my @lines_output = split '\n', $txt_output;
+
+	my $text_value_output = `v4l2-ctl --get-output -d $device $d`;
+	my $value_output;
+	if ($text_value_output =~ /Video output: (\d+) \(/) {
+		$value_output = $1;
+	}
+
+	my $menu_output;
+	foreach my $line (@lines_output) {
+		if ($line =~ /\s*Output  : (\d+)/) {
+			my $record = {
+				'name'	=> '',
+				'value'	=> $1
+			};
+			push @{$menu_output}, $record;
+		} elsif ($line =~ /\s*Name    : (.*)/) {
+			$menu_output->[scalar(@{$menu_output})-1]->{'name'} = $1;
+		}
+	}
+
+	my $record_output = {
+		'name'		=> '_video_output',
+		'type'		=> 'menu',
+		'default'	=> $menu_output->[0]->{'value'},
+		'value'		=> $value_output,
+		'menu'		=> $menu_output
+	};
+
+	push @{$$common_ctls}, $record_output;
+
+
+
+	my $txt_input = `v4l2-ctl --list-inputs -d $device $d`;
+	my @lines_input = split '\n', $txt_input;
+
+	my $text_value_input = `v4l2-ctl --get-input -d $device $d`;
+	my $value_input;
+	if ($text_value_input =~ /Video input : (\d+) \(/) {
+		$value_input = $1;
+	}
+
+	my $menu_input;
+	foreach my $line (@lines_input) {
+		if ($line =~ /\s*Input   : (\d+)/) {
+			my $record = {
+				'name'	=> '',
+				'value'	=> $1
+			};
+			push @{$menu_input}, $record;
+		} elsif ($line =~ /\s*Name    : (.*)/) {
+			$menu_input->[scalar(@{$menu_input})-1]->{'name'} = $1;
+		}
+	}
+
+	my $record_input = {
+		'name'		=> '_video_input',
+		'type'		=> 'menu',
+		'default'	=> $menu_input->[0]->{'value'},
+		'value'		=> $value_input,
+		'menu'		=> $menu_input
+	};
+
+	push @{$$common_ctls}, $record_input;
+
+
+
+	my $txt_standards = `v4l2-ctl --list-standards -d $device $d`;
+	my @lines_standards = split '\n', $txt_standards;
+
+	my $text_value_standards = `v4l2-ctl --get-standard -d $device $d`;
+	my $value_standards;
+	if ($text_value_standards =~ /Video Standard = 0x([0-9A-Fa-f]{8})/) {
+		my $id_get = $1;
+		$id_get =~ tr/abcdef/ABCDEF/;
+		if ($id_get eq '000000FF') {
+			$value_standards = 'pal';
+		} elsif ($id_get eq '00FF0000') {
+			$value_standards = 'secam';
+		} elsif ($id_get eq '0000B000') {
+			$value_standards = 'ntsc';
+		} else {
+			my ($index, $id);
+			foreach my $line (@lines_standards) {
+				if ($line =~ /\s*[Ii]ndex\s+: (\d+)/) {
+					$index = $1;
+				}
+				if ($line =~ /\s*ID\s+: 0x[0-9A-Fa-f]{8}([0-9A-Fa-f]{8})/) {
+					$id = $1;
+					if (defined $id and $id_get eq $id) {
+				    		$value_standards = $index;
+			    			last;
+					}
+				}
+			}
+		}
+	}
+
+	my $menu_standards;
+	foreach my $line (@lines_standards) {
+		if ($line =~ /\s*[Ii]ndex\s+: (\d+)/) {
+			my $record = {
+				'name'	=> '',
+				'value'	=> $1
+			};
+			push @{$menu_standards}, $record;
+		} elsif ($line =~ /\s*Name\s+: (.*)/) {
+			$menu_standards->[scalar(@{$menu_standards})-1]->{'name'} = $1;
+		}
+	}
+	push @{$menu_standards}, {
+				'name'	=> 'PAL B/G/H/N/Nc/I/D/K/M/60',
+				'value'	=> 'pal'
+	};
+	push @{$menu_standards}, {
+				'name'	=> 'SECAM B/G/H/D/K/L/Lc',
+				'value'	=> 'secam'
+	};
+	push @{$menu_standards}, {
+				'name'	=> 'NTSC M/J/K',
+				'value'	=> 'ntsc'
+	};
+
+	my $record_standards = {
+		'name'		=> '_video_standards',
+		'type'		=> 'menu',
+		'default'	=> $menu_standards->[0]->{'value'},
+		'value'		=> $value_standards,
+		'menu'		=> $menu_standards
+	};
+
+	push @{$$common_ctls}, $record_standards;
+
+
+
+	my $text_value_tuner = `v4l2-ctl --get-tuner -d $device $d`;
+	my $value_tuner;
+	if ($text_value_tuner =~ /Current audio mode   : ([a-zA-Z0-9]+)\n/s) {
+		$value_tuner = $1;
+	}
+
+	my @array_tuner = split ', ', 'mono, stereo, lang2, lang1, bilingual';
+	my $menu_tuner;
+	foreach my $mode (@array_tuner) {
+		my $record = {
+			'name'	=> $mode,
+			'value'	=> $mode
+		};
+		push @{$menu_tuner}, $record;
+	}
+
+	my $record_tuner = {
+		'name'		=> '_tuner_audio_mode',
+		'type'		=> 'menu',
+		'default'	=> $menu_tuner->[1]->{'value'},
+		'value'		=> $value_tuner,
+		'menu'		=> $menu_tuner
+	};
+
+	push @{$$common_ctls}, $record_tuner;
+
+
+
+	my $text_value_freq = `v4l2-ctl --get-freq -d $device $d`;
+	my $value_freq;
+	if ($text_value_freq =~ /Frequency: \d+ \(([.0-9]+) MHz\)/) {
+		$value_freq = $1;
+	}
+
+	my $record_freq = {
+		'name'		=> '_frequency',
+		'type'		=> 'int',
+		'min'		=> '44.00',
+		'max'		=> '958.00',
+		'step'		=> '0.1',
+		'value'		=> $value_freq
+	};
+
+	push @{$$common_ctls}, $record_freq;
+}
+
+
+sub message {
+	my $flag = shift;
+	my $text = shift;
+
+	if (defined $flag) {
+		$flag .= ': ';
+	} else {
+		$flag = '';
+	}
+
+	print STDERR $flag.$text."\n";
+}
+
+
+sub help {
+	print <<END;
+Using: ictl [OPTIONS]
+
+OPTIONS:
+  -d, --device=STR	video device (default /dev/video0)
+  -e, --debug           print debug messages
+  -V, --version         print version number
+  -h, --help            print this help
+
+Examples:
+  ictl -d /dev/video0
+
+Report bugs to <jiri(dot)tyr(at)e-learning(dot)vslib(dot)cz>.
+END
+}

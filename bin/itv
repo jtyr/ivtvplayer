@@ -1,0 +1,590 @@
+#!/usr/bin/perl
+
+
+##~#~~#~~~#~~~~#~~~~~#~~~~~~#~~~~~~~#~~~~~~~~#~~~~~~~~~#~~~~~~~~~~~~#
+# Name: itv                                                          #
+# Description: Simple command line TV player with support of LIRC.   #
+#              Supports only PVR TV cards based on IVTV driver.      #
+# Dependencies: mplayer, v4l2-ctl, ivtv-tune                         #
+# Author: Jiri Tyr                                                   #
+# Last update: 28.09.2008                                            #
+# License: GPL                                                       #
+##~#~~#~~~#~~~~#~~~~~#~~~~~~#~~~~~~~#~~~~~~~~#~~~~~~~~~#~~~~~~~~~~~~#
+
+
+use strict;
+use warnings;
+use Env qw(HOME);
+use Getopt::Long;
+use Lirc::Client;
+use XML::Simple;
+
+my $VERSION = '0.1.3';
+
+
+# global variables
+my ($device, $display, $channel, $frequency, $cache, $norm, $tune, $lirc, $lircdev, $rcfile, $debug, $options, $brightness, $contrast, $saturation, $hue, $volume, $aspect, $enablexosd, $version, $help);
+
+my $pid = 0;
+my $input_type = 'TV';
+my $config_path = $ENV{'HOME'}.'/.ivtv';
+my $config_file = $config_path.'/itv.xml';
+my $system_config_file = '/etc/ivtv/itv.xml';
+
+# check if exists configuration
+unless (-e $config_path) {
+	mkdir $config_path, 0755;
+}
+if (not -e $config_file and -e $system_config_file) {
+	$config_file = $system_config_file;
+} elsif (not -e $config_file) {
+	&message('E', 'No config file!');
+	exit 1;
+}
+
+# read configuration
+my $xml = XMLin(
+	$config_file,
+	'KeyAttr'	=> '-name',
+	'ForceArray'	=> ['channel'],
+);
+
+# check if there are some channels
+if (scalar @{$xml->{'channel-list'}->{'channel'}} == 0) {
+	&message('E', 'No channel specified!');
+	exit 1;
+}
+
+# load setting from XML file
+my $xmls = $xml->{'setting'};
+if (exists $xmls->{'device'} and length $xmls->{'device'} > 0) {
+	$device = $xmls->{'device'};
+}
+if (exists $xmls->{'display'} and length $xmls->{'display'} > 0) {
+	$display = $xmls->{'display'};
+}
+if (exists $xmls->{'default-channel'} and length $xmls->{'default-channel'} > 0) {
+	$channel = $xmls->{'default-channel'};
+}
+if (exists $xmls->{'cache'} and length $xmls->{'cache'} > 0) {
+	$cache = $xmls->{'cache'};
+}
+if (exists $xmls->{'norm'} and length $xmls->{'norm'} > 0) {
+	$norm = $xmls->{'norm'};
+}
+if (exists $xmls->{'lirc'} and length $xmls->{'lirc'} > 0) {
+	$lirc = $xmls->{'lirc'};
+}
+if (exists $xmls->{'lircdev'} and length $xmls->{'lircdev'} > 0) {
+	$lircdev = $xmls->{'lircdev'};
+}
+if (exists $xmls->{'rcfile'} and length $xmls->{'rcfile'} > 0) {
+	$rcfile = $xmls->{'rcfile'};
+}
+if (exists $xmls->{'debug'} and length $xmls->{'debug'} > 0) {
+	$debug = $xmls->{'debug'};
+}
+if (exists $xmls->{'options'} and length $xmls->{'options'} > 0) {
+	$options = $xmls->{'options'};
+}
+if (exists $xmls->{'brightness'} and length $xmls->{'brightness'} > 0) {
+	$brightness = $xmls->{'brightness'};
+}
+if (exists $xmls->{'contrast'} and length $xmls->{'contrast'} > 0) {
+	$contrast = $xmls->{'contrast'};
+}
+if (exists $xmls->{'saturation'} and length $xmls->{'saturation'} > 0) {
+	$saturation = $xmls->{'saturation'};
+}
+if (exists $xmls->{'hue'} and length $xmls->{'hue'} > 0) {
+	$hue = $xmls->{'hue'};
+}
+if (exists $xmls->{'volume'} and length $xmls->{'volume'} > 0) {
+	$volume = $xmls->{'volume'};
+}
+if (exists $xmls->{'aspect'} and length $xmls->{'acpect'} > 0) {
+	$aspect = $xmls->{'aspect'};
+}
+if (exists $xmls->{'xosd'} and length $xmls->{'xosd'} > 0) {
+	$enablexosd = $xmls->{'xosd'};
+}
+
+
+# get command line options
+my $p = new Getopt::Long::Parser();
+$p->configure('bundling');
+$p->getoptions(
+	'd|device=s'		=> \$device,
+	'y|display=i'		=> \$display,
+	'n|norm=s'		=> \$norm,
+	'a|cache=i'		=> \$cache,
+	'c|channel=s'		=> \$channel,
+	'f|frequency=f'		=> \$frequency,
+	't|tune'		=> \$tune,
+	'B|brightness=i'	=> \$brightness,
+	'C|contrast=i'		=> \$contrast,
+	'S|sturation=i'		=> \$saturation,
+	'H|hue=i'		=> \$hue,
+	'V|volume=i'		=> \$volume,
+	'p|aspect=i'		=> \$aspect,
+	'l|lirc'		=> \$lirc,
+	'i|lircdev=s'		=> \$lircdev,
+	'r|rcfile=s'		=> \$rcfile,
+	'x|xosd'		=> \$enablexosd,
+	'e|debug=i'		=> \$debug,
+	'v|version'		=> \$version,
+	'h|help'		=> \$help
+);
+
+
+# define all channels
+my @ch_array = @{$xml->{'channel-list'}->{'channel'}};
+
+
+# set default values
+$device ||= '/dev/video0';
+$display ||= ':0.0';
+$channel ||= $ch_array[0]->{'name'};
+$cache ||= 4096;
+$norm ||= 'pal';
+$lirc ||= 0;
+$lircdev ||= '/dev/lircd';
+$rcfile ||= $ENV{'HOME'}.'/.lircrc';
+$debug ||= 0;
+$options ||= '';
+$brightness ||= 128;
+$contrast ||= 64;
+$saturation ||= 64;
+$hue ||= 0;
+$volume ||= 58880;
+$aspect ||= 1;
+$enablexosd ||= 0;
+$pid = 0;
+
+# default mplayer options
+$options .= ' -display '.$display.' -cache '.$cache;
+
+
+# show help
+if ($help) {
+	&help();
+	exit 0;
+}
+
+# show version
+if ($version) {
+	print 'itv version '.$VERSION."\n";
+	exit 0;
+}
+
+
+# set brightness
+&message('I', 'Setting brightness: '.$brightness) if ($debug);
+system 'v4l2-ctl --set-ctrl=brightness='.$brightness.' --device '.$device.' 2>&1 1>/dev/null';
+# set contrast
+&message('I', 'Setting contrast: '.$contrast) if ($debug);
+system 'v4l2-ctl --set-ctrl=contrast='.$contrast.' --device '.$device.' 2>&1 1>/dev/null';
+# set saturation
+&message('I', 'Setting saturation: '.$saturation) if ($debug);
+system 'v4l2-ctl --set-ctrl=saturation='.$saturation.' --device '.$device.' 2>&1 1>/dev/null';
+# set hue
+&message('I', 'Setting hue: '.$hue) if ($debug);
+system 'v4l2-ctl --set-ctrl=hue='.$hue.' --device '.$device.' 2>&1 1>/dev/null';
+# set volume
+&message('I', 'Setting volume: '.$volume) if ($debug);
+system 'v4l2-ctl --set-ctrl=volume='.$volume.' --device '.$device.' 2>&1 1>/dev/null';
+
+
+if ($channel eq 'comp') {
+	$input_type = 'COMP';
+	# tune to the composite
+	&tuneComposite();
+} elsif (defined $frequency) {
+	# tune frequency
+	&tuneFreq($frequency);
+} else {
+	my $freq;
+
+	# select frequence
+	if (not defined $channel or length $channel == 0) {
+		&message('E', 'Undefined channel!');
+		exit 1;
+	} else {
+		$freq = &getFreq($channel);
+		if ($freq == -1) {
+			&message('E', 'Wrong channel!');
+			exit 1;
+		}
+	}
+
+	# tune to a specific frequence
+	&tuneFreq($freq);
+}
+
+
+# set video aspect
+&changeAspect();
+
+
+# run player
+unless (defined $tune) {
+	&runMplayer();
+}
+
+
+# LIRC support
+if ($lirc) {
+	my $d = 0;
+	if ($debug > 2) {
+		$d = 1;
+	}
+	my $lirc = new Lirc::Client('itv',
+		{
+			'rcfile' => $rcfile,
+			'dev'    => $lircdev,
+			'debug'  => $d,
+			'mode'   => 'itv',
+			'fake'   => 0
+		}
+	);
+
+	my $xosd;
+	if ($enablexosd == 1) {
+		# try to load xosd module
+		eval 'use X::Osd';
+
+		# if module loaded, define xosd
+		if (length $@ == 0) {
+			&message('I', 'There is XOSD support') if ($debug);
+
+			$xosd = new X::Osd(1);
+			$xosd->set_font($xmls->{'xosd-font'} || '-*-arial-*-r-*-*-30-*-*-*-*-*-*-*');
+			$xosd->set_colour($xmls->{'xosd-color'} || 'Green');
+			$xosd->set_timeout($xmls->{'xosd-timeout'} || 3);
+			$xosd->set_pos($xmls->{'xosd-position'} || 1); # 0=top, 1=bottom, 2=middle
+			$xosd->set_align($xmls->{'xosd-align'} || 0); # 0=left, 1=center, 2=right
+			$xosd->set_horizontal_offset($xmls->{'xosd-horizontal-offset'} || 30);
+			$xosd->set_vertical_offset($xmls->{'xosd-vertical-offset'} || 50);
+			$xosd->set_shadow_colour($xmls->{'xosd-shadow-color'} || 'DimGray');
+			$xosd->set_shadow_offset($xmls->{'xosd-shadow-offset'} || 2);
+
+			$xosd->string(0, 'CH'.(&getChannelIndex($channel)+1).' - '.$channel);
+		}
+	}
+
+	# read code
+	my $code;
+	do {
+		$code = $lirc->next_code();
+		&processCode($code, $xosd);
+	} while(defined $code);
+}
+
+
+exit 0;
+
+
+###################
+### SUBPROGRAMS ###
+###################
+
+sub killMplayer {
+	&message('I', 'Killing mplayer...') if ($debug > 1);
+
+	# find and kill all mplayers
+	my $processes = `pstree -p $pid`;
+	$processes =~ s/\)\s$//;
+	$processes =~ s/(mplayer|\(|-)//g;
+	my @proc = split /\)/, $processes;
+	for (my $i=scalar(@proc)-1; $i>=0; $i--) {
+		my $p = $proc[$i];
+		&message ('I', '  * PID='.$p) if ($debug > 1);
+		system 'kill -9 '.$p.' 2>&1 1>/dev/null';
+	}
+	sleep 1;
+}
+
+
+sub runMplayer {
+	# if LIRC support is enabled, run mplayer on the background
+	if ($lirc > 0) {
+		my $d = ' -really-quiet 1>/dev/null 2>&1 & echo $!';
+		my $cmd = 'mplayer '.$options.' '.$device.' '.$d;
+		&message('I', '(LIRC) '.$cmd) if ($debug > 1);
+		$pid = `$cmd`;
+		chomp $pid;
+		&message('I', ' * PID='.$pid) if ($debug > 1);
+	} else {
+		my $d = '';
+		if ($debug > 1) {
+			$d = '-msglevel all=9';
+		}
+
+		my $cmd = 'mplayer '.$options.' '.$device.' '.$d;
+		&message('I', $cmd) if ($debug > 1);
+		system $cmd;
+	}
+}
+
+
+sub getFreq {
+	my $chan = shift;
+
+	my $ret = -1;
+
+	&message('I', 'Searching freq for channel '.$chan) if ($debug);
+
+	foreach my $ch (@ch_array) {
+		if (lc $ch->{'name'} eq lc $chan) {
+			$ret = $ch->{'freq'};
+			&message(undef, '    * freq='.$ret) if ($debug);
+			last;
+		}
+	}
+
+	if ($ret == -1 and $debug) {
+		&message(undef, '    * no freq found!') if ($debug);
+	}
+
+	return $ret;
+}
+
+
+sub getChannelIndex {
+	my $ch = shift;
+
+	my $ret = -1;
+
+	for(my $i=0; $i<scalar @ch_array; $i++) {
+		if (lc $ch_array[$i]->{'name'} eq lc $ch) {
+			$ret = $i;
+			last;
+		}
+	}
+
+	return $ret;
+}
+
+
+sub processCode {
+	my $c = shift;
+	my $xosd = shift;
+
+	my $prev = $input_type;
+	if ($c eq 'COMP') {
+		$input_type = 'COMP';
+	} else {
+		$input_type = 'TV';
+	}
+	&message('I', 'INPUT: prev='.$prev.'; cur='.$c.';') if ($debug > 1);
+
+	&message('I', 'Resolving code '.$c) if ($debug);
+	if ($c eq 'QUIT') {
+		&message('I', 'Quit application') if ($debug);
+		&killMplayer();
+		exit 0;
+	} elsif ($c =~ /^CH(\d+)$/) {
+		my $cn = $1;
+		&message('I', 'Tune CH'.$cn) if ($debug);
+		$channel = $ch_array[$cn-1]->{'name'};
+		if ($prev eq 'COMP' and $pid) {
+			&killMplayer();
+		}
+		&tuneFreq($ch_array[$cn-1]->{'freq'});
+		if ($prev eq 'COMP' and $pid) {
+			&runMplayer();
+		}
+
+		if (defined $xosd) {
+			$xosd->string(0, 'CH'.$cn.' - '.$channel);
+		}
+	} elsif ($c eq 'COMP') {
+		&message('I', 'Tune Composite') if ($debug);
+
+		if ($prev ne 'COMP' and $pid) {
+			&killMplayer();
+		}
+		&tuneComposite();
+		if ($prev ne 'COMP' and $pid) {
+			&runMplayer();
+		}
+
+		if (defined $xosd) {
+			$xosd->string(0, 'Composite');
+		}
+	} elsif ($c eq 'ASPECT') {
+		&message('I', 'Change aspect') if ($debug);
+
+		my $txt = `v4l2-ctl --get-ctrl=video_aspect -d $device 2>&1`;
+
+		if ($txt =~ /video_aspect: (\d)/) {
+			$aspect = $1;
+			&message(undef, '     * current='.$aspect) if ($debug);
+			if ($aspect == 3) {
+				$aspect = 0;
+			} else {
+				$aspect++;
+			}
+
+			if (defined $xosd) {
+				my $asp = undef;
+				if ($aspect == 0) {
+					$asp = '1:1';
+				} elsif ($aspect == 1) {
+					$asp = '4:3';
+				} elsif ($aspect == 2) {
+					$asp = '16:9';
+				} elsif ($aspect == 3) {
+					$asp = '2.21x1';
+				}
+
+				if (defined $asp) {
+					$xosd->string(0, 'Aspect '.$asp);
+				}
+			}
+
+			&changeAspect();
+		} else {
+			&message('E', 'Video aspect setting failed!') if ($debug);
+		}
+	} elsif ($c eq 'CH+') {
+		&message('I', 'Tune next channel') if ($debug);
+		&message(undef, '    * cur='.$channel) if ($debug);
+
+		my $len = scalar @ch_array;
+		my $index = &getChannelIndex($channel);
+
+		if ($index == $len-1) {
+			$channel = $ch_array[0]->{'name'};
+		} else {
+			$channel = $ch_array[$index+1]->{'name'};
+		}
+
+		&message(undef, '    * new='.$channel) if ($debug);
+		if ($prev eq 'COMP' and $pid) {
+			&killMplayer();
+		}
+		&tuneFreq(&getFreq($channel));
+		if ($prev eq 'COMP' and $pid) {
+			&runMplayer();
+		}
+
+		if (defined $xosd) {
+			$xosd->string(0, 'CH'.(&getChannelIndex($channel)+1).' - '.$channel);
+		}
+	} elsif ($c eq 'CH-') {
+		&message('I', 'Tune previous channel') if ($debug);
+		&message(undef, '    * cur='.$channel) if ($debug);
+
+		my $len = scalar @ch_array;
+		my $index = &getChannelIndex($channel);
+		my $cn;
+
+		if ($index == 0) {
+			$channel = $ch_array[$len-1]->{'name'};
+			$cn = $len-1;
+		} else {
+			$channel = $ch_array[$index-1]->{'name'};
+			$cn = $index-1;
+		}
+
+		&message(undef, '    * new='.$channel) if ($debug);
+		if ($prev eq 'COMP' and $pid) {
+			&killMplayer();
+		}
+		&tuneFreq(&getFreq($channel));
+		if ($prev eq 'COMP' and $pid) {
+			&runMplayer();
+		}
+
+		if (defined $xosd) {
+			$xosd->string(0, 'CH'.(&getChannelIndex($channel)+1).' - '.$channel);
+		}
+	} elsif ($c eq 'SHOW_CHANNEL') {
+		&message('I', 'Show current channel name') if ($debug);
+
+		if (defined $xosd) {
+			$xosd->string(0, 'CH'.(&getChannelIndex($channel)+1).' - '.$channel);
+		}
+	}
+}
+
+
+sub tuneFreq {
+	my $f = shift;
+
+	&message('I', 'Tune frequency:') if ($debug);
+
+	# swith to tunner
+	&message(undef, '    * set input: Tuner') if ($debug);
+	system 'v4l2-ctl -i 0 -d '.$device.' 2>&1 1>/dev/null';
+	# set norm
+	&message(undef, '    * set norm: '.$norm) if ($debug);
+	system 'v4l2-ctl -s '.$norm.' -d '.$device.' 2>&1 1>/dev/null';
+	# tune frequency
+	&message(undef, '    * set frequency: '.$f) if ($debug);
+	system 'ivtv-tune -f '.$f.' -d '.$device.' 2>&1 1>/dev/null && sleep 0.5';
+}
+
+
+sub tuneComposite {
+	# swith to composite
+	&message('I', 'Set Composite') if ($debug);
+	system 'v4l2-ctl -i 2 -d '.$device.' 2>&1 1>/dev/null';
+}
+
+
+sub changeAspect {
+	# swith to composite
+	&message(undef, '    * aspect='.$aspect) if ($debug);
+	system 'v4l2-ctl --set-ctrl=video_aspect='.$aspect.' -d '.$device.' 2>&1 1>/dev/null';
+}
+
+
+sub message {
+	my $flag = shift;
+	my $text = shift;
+
+	if (defined $flag) {
+		$flag .= ': ';
+	} else {
+		$flag = '';
+	}
+
+	print STDERR $flag.$text."\n";
+}
+
+
+sub help {
+	print <<END;
+Using: itv [OPTIONS]
+
+OPTIONS:
+  -d, --device=STR	video device (default /dev/video0)
+  -y, --display=STR	X11 display (default :0.0)
+  -n, --norm=STR        TV norm ([pal, ntsc, secam], default pal)
+  -c, --channel=STR     channel name
+  -f, --frequency=FREQ	frequency in MHz
+  -t, --tune            tune only
+  -B, --brightness	brightness level ([0-255], default 128)
+  -C, --contrast        contrast level ([0-127], default 64)
+  -S, --saturation      saturation level ([0-127], default 64)
+  -H, --hue		hue level ([-128-127], default 0)
+  -V, --volume=INT      volume level ([0-65535], default 58800)
+  -p, --aspect=INT      video aspect ([0-3], default 1)
+  -l, --lirc            enable lirc support
+  -i, --lircdev=FILE    lircd file (default /dev/lircd)
+  -r, --rcfiles=FILE    lircrc file (default ~/.lircrc)
+  -x, --xosd            enable xosd support ([0|1], default 0)
+  -e, --debug=INT       print debug messages ([0-3], default 0)
+  -v, --version         print version number
+  -h, --help            print this help
+
+Examples:
+  itv -n PAL -c mtv
+  itv -c rtl -t
+  itvt -f 123.4
+
+Report bugs to <jiri(dot)tyr(at)e-learning(dot)vslib(dot)cz>.
+END
+}

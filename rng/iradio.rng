@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+  **********************************************************
+  ** Description: RELAX-NG scheme for validation of
+  **              iradio.xml configuration file
+  **
+  ** (c) Jiri Tyr 2008
+  **********************************************************
+  -->
+
+<element name="iradio" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <optional>
+    <element name="setting">
+      <interleave>
+        <optional>
+          <element name="device">
+            <data type="anyURI"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="default-channel">
+            <data type="string"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="lirc">
+            <choice>
+              <value>0</value>
+              <value>1</value>
+            </choice>
+          </element>
+        </optional>
+        <optional>
+          <element name="lircdev">
+            <data type="anyURI"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="rcfile">
+            <data type="anyURI"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="debug">
+            <choice>
+              <value>0</value>
+              <value>1</value>
+              <value>2</value>
+              <value>3</value>
+            </choice>
+          </element>
+        </optional>
+        <optional>
+          <element name="volume">
+            <data type="integer">
+              <param name="minInclusive">0</param>
+              <param name="maxInclusive">65535</param>
+            </data>
+          </element>
+        </optional>
+        <optional>
+          <element name="xosd">
+            <choice>
+              <value>0</value>
+              <value>1</value>
+            </choice>
+          </element>
+        </optional>
+        <optional>
+          <element name="xosd-font">
+            <data type="string"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="xosd-color">
+            <data type="string"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="xosd-timeout">
+            <data type="positiveInteger"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="xosd-position">
+            <choice>
+              <value>0</value>
+              <value>1</value>
+              <value>2</value>
+            </choice>
+          </element>
+        </optional>
+        <optional>
+          <element name="xosd-align">
+            <choice>
+              <value>0</value>
+              <value>1</value>
+              <value>2</value>
+            </choice>
+          </element>
+        </optional>
+        <optional>
+          <element name="xosd-horizontal-offset">
+            <data type="positiveInteger"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="xosd-vertical-offset">
+            <data type="positiveInteger"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="xosd-shadow-color">
+            <data type="string"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="xosd-shadow-offset">
+            <data type="positiveInteger"/>
+          </element>
+        </optional>
+      </interleave>
+    </element>
+  </optional>
+  <element name="channel-list">
+    <oneOrMore>
+      <element name="channel">
+        <element name="name">
+          <data type="string"/>
+        </element>
+        <element name="freq">
+          <data type="float">
+            <param name="minInclusive">65.0</param>
+            <param name="maxInclusive">108.0</param>
+          </data>
+        </element>
+      </element>
+    </oneOrMore>
+  </element>
+</element>

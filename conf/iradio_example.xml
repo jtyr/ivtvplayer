@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+  **********************************************************
+  ** Description: Configuration file for iradio
+  **
+  ** (c) Jiri Tyr 2008
+  **********************************************************
+  -->
+
+<iradio>
+  <!-- optional -->
+  <setting>
+    <!-- optional; PCM audio capture device; default /dev/video24 -->
+    <device>/dev/video24</device>
+    <!-- optional; default channel; default is the first channel in the channel-list -->
+    <default-channel>ONEFM</default-channel>
+    <!-- optional; enable LIRC support; default 0; values [0|1] -->
+    <lirc>0</lirc>
+    <!-- optional; LIRC device; default /dev/lircd -->
+    <lircdev>/dev/lircd</lircdev>
+    <!-- optional; LIRC configuration file; default ~/.lircrc -->
+    <rcfile>/etc/lircrc</rcfile>
+    <!-- optional; debug; default 0; values [0|1|2|3] -->
+    <debug>0</debug>
+    <!-- optional; ivtv device volume; default 58800; values [0-65535] -->
+    <volume>65535</volume>
+    <!-- optional; enable xosd support; default 1; values [0|1] -->
+    <xosd>0</xosd>
+    <!-- optional; xosd font; default -*-arial-*-r-*-*-30-*-*-*-*-*-*-* -->
+    <xosd-font>-*-arial-*-r-*-*-30-*-*-*-*-*-*-*</xosd-font>
+    <!-- optional; xosd text color; default Green -->
+    <xosd-color>Green</xosd-color>
+    <!-- optional; xosd timeout; default 3 -->
+    <xosd-timeout>3</xosd-timeout>
+    <!-- optional; xosd vertical position; default bottom; values 0=top, 1=bottom, 2=middle -->
+    <xosd-position>1</xosd-position>
+    <!-- optional; xosd horizontal position; default left; values 0=left, 1=center, 2=right -->
+    <xosd-align>0</xosd-align>
+    <!-- optional; xosd horizontal offset; default 20 -->
+    <xosd-horizontal-offset>20</xosd-horizontal-offset>
+    <!-- optional; xosd vertical offset; default 50 -->
+    <xosd-vertical-offset>50</xosd-vertical-offset>
+    <!-- optional; xosd shadow color; default DimGray -->
+    <xosd-shadow-color>DimGray</xosd-shadow-color>
+    <!-- optional; xosd shadow offset; default 2 -->
+    <xosd-shadow-offset>2</xosd-shadow-offset>
+  </setting>
+  <channel-list>
+    <channel>
+      <name>WRS</name>
+      <freq>88.4</freq>
+    </channel>
+    <channel>
+      <name>ONEFM</name>
+      <freq>107.0</freq>
+    </channel>
+    <channel>
+      <name>LAC</name>
+      <freq>91.8</freq>
+    </channel>
+
+    <channel>
+      <name>UNKNOWN1</name>
+      <freq>87.8</freq>
+    </channel>
+    <channel>
+      <name>UNKNOWN2</name>
+      <freq>88.9</freq>
+    </channel>
+    <channel>
+      <name>UNKNOWN3</name>
+      <freq>89.6</freq>
+    </channel>
+    <channel>
+      <name>UNKNOWN4</name>
+      <freq>90.2</freq>
+    </channel>
+    <channel>
+      <name>UNKNOWN5</name>
+      <freq>91.3</freq>
+    </channel>
+    <channel>
+      <name>UNKNOWN6</name>
+      <freq>92.3</freq>
+    </channel>
+    <channel>
+      <name>UNKNOWN7</name>
+      <freq>92.7</freq>
+    </channel>
+    <channel>
+      <name>UNKNOWN9</name>
+      <freq>93.8</freq>
+    </channel>
+    <channel>
+      <name>UNKNOWN10</name>
+      <freq>94.4</freq>
+    </channel>
+    <channel>
+      <name>UNKNOWN11</name>
+      <freq>95.0</freq>
+    </channel>
+    <channel>
+      <name>UNKNOWN12</name>
+      <freq>96.6</freq>
+    </channel>
+    <channel>
+      <name>UNKNOWN13</name>
+      <freq>97.6</freq>
+    </channel>
+    <channel>
+      <name>UNKNOWN14</name>
+      <freq>98.9</freq>
+    </channel>
+    <channel>
+      <name>UNKNOWN15</name>
+      <freq>100.1</freq>
+    </channel>
+    <channel>
+      <name>UNKNOWN16</name>
+      <freq>103.6</freq>
+    </channel>
+    <channel>
+      <name>UNKNOWN18</name>
+      <freq>105.0</freq>
+    </channel>
+    <channel>
+      <name>UNKNOWN19</name>
+      <freq>105.6</freq>
+    </channel>
+    <channel>
+      <name>UNKNOWN20</name>
+      <freq>106.1</freq>
+    </channel>
+  </channel-list>
+</iradio>

@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+  **********************************************************
+  ** Description: Configuration file for itv
+  **
+  ** (c) Jiri Tyr 2008
+  **********************************************************
+  -->
+
+<itv>
+  <!-- optional -->
+  <setting>
+    <!-- optional; video device; default /dev/video0 -->
+    <device>/dev/video0</device>
+    <!-- optional; X11 display; default :0.0 -->
+    <display>:0.0</display>
+    <!-- optional; default chanel; default is the first channel in the channel-list -->
+    <default-channel>TF1</default-channel>
+    <!-- optional; mplayer cache size; default 4096 -->
+    <cache>4096</cache>
+    <!-- optional; TV norm; default PAL; values [pal|secam|ntsc] -->
+    <norm>secam</norm>
+    <!-- optional; enable LIRC support; default 0; values [0|1] -->
+    <lirc>0</lirc>
+    <!-- optional; LIRC device; default /dev/lircd -->
+    <lircdev>/dev/lircd</lircdev>
+    <!-- optional; LIRC configuration file; default ~/.lircrc -->
+    <rcfile>/etc/lircrc</rcfile>
+    <!-- optional; debug; default 0; values [0|1|2|3] -->
+    <debug>0</debug>
+    <!-- optional; additional mplayer options -->
+    <options>-fs -framedrop -vf crop=670:568:25:3</options>
+    <!-- optional; ivtv device brightness; default 128; values [0-255] -->
+    <brightness>128</brightness>
+    <!-- optional; ivtv device contrast; default 64; values [0-127] -->
+    <contrast>64</contrast>
+    <!-- optional; ivtv device saturation; default 64; values [0-127] -->
+    <saturation>64</saturation>
+    <!-- optional; ivtv device hue; default 0; values [-128-127] -->
+    <hue>64</hue>
+    <!-- optional; ivtv device volume; default 58800; values [0-65535] -->
+    <volume>58800</volume>
+    <!-- optional; video aspect radio; default 1; values 0=1:1, 1=4:3, 2=16:9, 3=2.21:1 -->
+    <acpect>1</acpect>
+    <!-- optional; enable xosd support; default 1; values [0|1] -->
+    <xosd>0</xosd>
+    <!-- optional; xosd font; default -*-arial-*-r-*-*-30-*-*-*-*-*-*-* -->
+    <xosd-font>-*-arial-*-r-*-*-30-*-*-*-*-*-*-*</xosd-font>
+    <!-- optional; xosd text color; default Green -->
+    <xosd-color>Green</xosd-color>
+    <!-- optional; xosd timeout; default 3 -->
+    <xosd-timeout>3</xosd-timeout>
+    <!-- optional; xosd vertical position; default bottom; values 0=top, 1=bottom, 2=middle -->
+    <xosd-position>1</xosd-position>
+    <!-- optional; xosd horizontal position; default left; values 0=left, 1=center, 2=right -->
+    <xosd-align>0</xosd-align>
+    <!-- optional; xosd horizontal offset; default 20 -->
+    <xosd-horizontal-offset>20</xosd-horizontal-offset>
+    <!-- optional; xosd vertical offset; default 50 -->
+    <xosd-vertical-offset>50</xosd-vertical-offset>
+    <!-- optional; xosd shadow color; default DimGray -->
+    <xosd-shadow-color>DimGray</xosd-shadow-color>
+    <!-- optional; xosd shadow offset; default 2 -->
+    <xosd-shadow-offset>2</xosd-shadow-offset>
+  </setting>
+  <channel-list>
+    <channel>
+      <name>TF1</name>
+      <freq>639.25</freq>
+    </channel>
+    <channel>
+      <name>TF2</name>
+      <freq>663.25</freq>
+    </channel>
+    <channel>
+      <name>TF3</name>
+      <freq>831.25</freq>
+    </channel>
+    <channel>
+      <name>TV8</name>
+      <freq>759.25</freq>
+    </channel>
+    <channel>
+      <name>TF5</name>
+      <freq>735.25</freq>
+    </channel>
+    <channel>
+      <name>M6</name>
+      <freq>711.25</freq>
+    </channel>
+    <channel>
+      <name>CANAL+</name>
+      <freq>815.25</freq>
+    </channel>
+  </channel-list>
+</itv>

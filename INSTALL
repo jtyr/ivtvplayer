@@ -1,0 +1,16 @@
+Installation
+============
+
+1) Copy bin/itv, bin/iradio and bin/ictl into /usr/local/bin or into an other
+   bin directory.
+
+2) Create your own settings for itv and iradio. You can inspirate with the files
+   conf/iradio_example.xml and conf/itv_example.xml. You can place it into
+   ~/.ivtv/ or /etc/ivtv/ directory. If you want to be sure that your
+   configuration file is valide, you can use RelaxNG validator:
+
+   $ xmllint --noout --relaxng rng/itv.rng ~/.ivtv/itv.xml
+   $ xmllint --noout --relaxng rng/iradio.rng ~/.ivtv/iradio.xml
+
+3) If you want LIRC support, you can add the content of the file conf/lircrc
+   into your LIRC configuration.

@@ -1,0 +1,20 @@
+Changes in version 0.1.3:
+* added ictl compatibility with ivtv-utils-1.3.0
+* changed the video input switching (necessary for tv/composite)
+* added controls for brightness, contrast, saturation and hue in itv
+* added debug message for mplayer command into itv
+
+Changes in version 0.1.2:
+* added support of XOSD into itv and iradio
+* added posibility of config file in directory /etc/ivtv
+
+Changes in version 0.1.1:
+* added new utility ictl
+* iradio: removed passthrough mode
+* iradio: corrected wrong lirc flags
+* itv: corrected channel switching
+* itv: added video_aspect support
+* itv: chang of frequency range in RNG
+
+Changes in version 0.1:
+* initial version
